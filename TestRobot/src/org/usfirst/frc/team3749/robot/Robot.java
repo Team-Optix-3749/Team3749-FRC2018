@@ -28,9 +28,15 @@ import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.drive.DifferentialDrive;
 import edu.wpi.first.wpilibj.interfaces.Accelerometer;
 
+/**
+ * Robot class controls robot for teleop and autonomous for Team 3749.
+ * 
+ * @author Team Optix
+ * @date February 10, 2018
+ */
 public class Robot extends IterativeRobot {
 	// Camera thread
-	Thread m_visionThread;
+	// Thread m_visionThread;
 
 	// accesses controller
 	private Joystick stick;
@@ -47,44 +53,40 @@ public class Robot extends IterativeRobot {
 	
 	// main drive object
 	private DifferentialDrive drive;
-	
-	// accesses the accelerometer in the RoboRIO
-	private Accelerometer accel;
-	
-	private SpeedController gearMotor;
-	
-	// stores data for the accelerometer, velocity, and distance
-	private double [] accelData;
-	private double [] velData;
-	private double [] distData;
-	
-	// milliseconds of last frame
-	private long pMillis;
-	// delta time, time since last frame
-	private long dTime;
-	
+
+	private SpeedController armMotor;
+	private SpeedController leftFly;
+	private SpeedController rightFly;
 	private boolean autoDone;
 	
 	// which drive control, two joystick or one joystick
-	private final boolean ONE_JOYSTICK = false;
+	private final boolean ARCADE_DRIVE = true;
 	
 	// how much to scale down general speeds
-	private final double scalePower = 0.6;
+	private final double scalePower = .8;
 	
-	//autonomous speed constants (to fix left side being slow)
+	// autonomous speed constants for tank drive
 	private final double leftSpeed = 1; // multiply left speed
-	private final double rightSpeed = .7; // multiply right speed
+	private final double rightSpeed = 1; // multiply right speed
+
+	// autonomous speed constants for arcade drive
+	private double ySpeed = 1;
+	private double xSpeed = .85; // goes a bit left more
 	
-	// initializes the robot
+	/**
+	 * method robotInit is run to initialize the robot at the very beginning, used like a constructor
+	 */
+	@Override
 	public void robotInit() {
-		// creates a Joystick based on the controller at port 0
+		
+		// creates a joystick based on the xbox controller locked at port 0
 		stick = new Joystick(0);
 		
 		// the drive motors (Spark/Talon)
-		leftMotor1 = new Spark(0);
-		leftMotor2 = new Talon(1);
-		rightMotor1 = new Spark(3);
-		rightMotor2 = new Talon(2);
+		leftMotor1 = new Spark(8);
+		leftMotor2 = new Spark(9);
+		rightMotor1 = new Spark(6);
+		rightMotor2 = new Spark(7);
 		
 		// groups of motors
 		m_left = new SpeedControllerGroup(leftMotor1, leftMotor2);
@@ -93,68 +95,19 @@ public class Robot extends IterativeRobot {
 		// creates drive system based on let and right speed controller groups
 		drive = new DifferentialDrive(m_left, m_right);
 		
-		// gearMotor = new Talon (9);
+		// armMotor = new Spark (2);
+		leftFly = new Spark (0);
+		rightFly = new Talon (1);
 		
-		// get the accelerometer onboard the RoboRIO
-		accel = new BuiltInAccelerometer();
-		accelData = new double [3];
-		velData = new double [3];
-		distData = new double [3];
+		// get the accelerometer on the RoboRIO
+		// accel = new BuiltInAccelerometer();
 		
-		pMillis = System.currentTimeMillis();
-		
-		/*
-		 * camera sample code
-		 * radio must be reconfigured in order for it to work
-		 */
-		
-/*		m_visionThread = new Thread(() -> {
-			// Get the Axis camera from CameraServer
-			AxisCamera camera
-					= CameraServer.getInstance().addAxisCamera("axis-camera.local");
-			// Set the resolution
-			camera.setResolution(640, 480);
-
-			// Get a CvSink. This will capture Mats from the camera
-			CvSink cvSink = CameraServer.getInstance().getVideo();
-			// Setup a CvSource. This will send images back to the Dashboard
-			CvSource outputStream
-					= CameraServer.getInstance().putVideo("Rectangle", 640, 480);
-
-			// Mats are very memory expensive. Lets reuse this Mat.
-			Mat mat = new Mat();
-
-			// This cannot be 'true'. The program will never exit if it is. This
-			// lets the robot stop this thread when restarting robot code or
-			// deploying.
-			while (!Thread.interrupted()) {
-				// Tell the CvSink to grab a frame from the camera and put it
-				// in the source mat.  If there is an error notify the output.
-				if (cvSink.grabFrame(mat) == 0) {
-					// Send the output the error.
-					outputStream.notifyError(cvSink.getError());
-					// skip the rest of the current iteration
-					continue;
-				}
-				// Put a rectangle on the image
-				Imgproc.rectangle(mat, new Point(100, 100), new Point(400, 400),
-						new Scalar(255, 255, 255), 5);
-				// Give the output stream a new image to display
-				outputStream.putFrame(mat);
-			}
-		});
-		m_visionThread.setDaemon(true);
-		m_visionThread.start();
-*/	}
+		// pMillis = System.currentTimeMillis();
+	}
 	
 	@Override
 	public void autonomousInit() {
-		resetAccel();
-		autoDone = false;
-	}
-	
-	public void autonomousDisable() {
-		resetAccel ();
+		// so that autonomous runs
 		autoDone = false;
 	}
 	
@@ -162,11 +115,8 @@ public class Robot extends IterativeRobot {
 	public void autonomousPeriodic() {
 		
 		while (isEnabled() && !autoDone)
-		{
-		//	System.out.println("Accelerometer data: " + accelData[0] + ", " + accelData[1] + ", " + accelData[2]);
-		//	System.out.println("Velocity data: " + velData[0] + ", " + velData[1] + ", " + velData[2]);
-		//	System.out.println("Distance data: " + distData[0] + ", " + distData[1] + ", " + distData[2]);
-			
+		{	
+			// forward for 5 seconds
 			forwardTime (5);
 			autoDone = true;
 		}
@@ -174,37 +124,58 @@ public class Robot extends IterativeRobot {
 	}
 
 	@Override
+	public void teleopInit () {
+		
+	}
+	
+	@Override
 	public void teleopPeriodic() {
 		// console debugging 
 		
 		while (isOperatorControl() && isEnabled()) {
 			
-			// System.out.println("Right joystick y: " + (-stick.getRawAxis(5)));
-			
-			if (ONE_JOYSTICK)
+			if (ARCADE_DRIVE)
 			{
-				/*
-				 * one joystick control
-				 * gets the y (and inverts) and the x 
-				 */
+				// reset first in case joysticks are broke
+				drive.arcadeDrive(0, 0);
 				
-				// ensures at least one joystick is out
-				if (Math.abs (stick.getRawAxis(0)) > 0.01 || Math.abs(stick.getRawAxis(1)) > 0.01)
-					drive.arcadeDrive(-stick.getRawAxis(1) * scalePower, stick.getRawAxis(0) * scalePower);
-				else
-					drive.arcadeDrive(0, 0); // otherwise reset
+				/*
+				 * controls a two joystick drive
+				 * left joystick y for forward/backward and right joystick x for left/right
+				 */
+				drive.arcadeDrive(-stick.getRawAxis(1) * ySpeed * scalePower, stick.getRawAxis(4) * xSpeed * scalePower * (stick.getRawAxis(1) > 0 ? -1 : 1), true);
 			}
 			else
 			{
+				// resets if joysticks are broke
+				drive.tankDrive(0, 0);
+				
 				/*
 				 * two joystick control
 				 * gets the y of the left and right joysticks and inverts
+				 * divides by opposite power (instead of multiplying) to stay at fastest speed possible
 				 */
-				if (Math.abs (stick.getRawAxis(5)) > 0.01 || Math.abs(stick.getRawAxis(1)) > 0.01)
-					drive.tankDrive (-stick.getRawAxis (1) * scalePower / rightSpeed, -stick.getRawAxis (5) * scalePower / leftSpeed, true);
-				else
-					drive.tankDrive(0, 0);
+				drive.tankDrive (-stick.getRawAxis (1) * scalePower / rightSpeed, -stick.getRawAxis (5) * scalePower / leftSpeed, true);
 			}
+			
+			// other motors
+			
+			// sets main arm to half of speed given from left/right triggers
+			double speed = stick.getRawAxis(3) - stick.getRawAxis(2);
+			armMotor.set (speed * 0.5);
+
+			// sets speed if only one bumper button
+			double flySpeed = 0;
+			if (stick.getRawButton(5) && !stick.getRawButton(6))
+				flySpeed = -0.33;
+			if (stick.getRawButton(6) && !stick.getRawButton(5))
+				flySpeed = 0.42;
+			
+			// negates right side (motors are upside down)
+			leftFly.set(flySpeed);
+			rightFly.set(-flySpeed);
+			
+			Timer.delay(0.01);
 		}
 	}
 
@@ -212,62 +183,58 @@ public class Robot extends IterativeRobot {
 	public void testPeriodic() {
 		
 		while (isEnabled()) {
-			//Decide on which axis, experiment with it
-			double speed = stick.getRawAxis(3) - stick.getRawAxis(2);
-			// gearMotor.set (speed/2);
+			Timer.delay(0.01);
 		}
-	}
-	public void updateAccel ()
-	{
-		// get accelerometer data from accelerometer object
-		accelData[0] = accel.getX() * 9.81;
-		accelData[1] = accel.getY() * 9.81;
-		accelData[2] = accel.getZ() * 9.81;
 		
-		dTime = System.currentTimeMillis() - pMillis;
-		pMillis = System.currentTimeMillis();
-		
-		// accumulates velocity based on acceleration and time
-		velData[0] += accelData[0] * dTime / 1000.0;
-		velData[1] += accelData[1] * dTime / 1000.0;
-		velData[2] += accelData[2] * dTime / 1000.0;
-
-		// accumulates distance based on velocity and time
-		distData[0] += velData[0] * dTime / 1000.0;
-		distData[1] += velData[1] * dTime / 1000.0;
-		distData[2] += velData[2] * dTime / 1000.0;
 	}
-	public void resetAccel ()
-	{
-		accelData = new double [3];
-		velData = new double [3];
-		distData = new double [3];
-	}
+	/**
+	 * method forward uses either arcade or tank drive to move forward, based on calibration variables
+	 */
 	public void forward ()
 	{
-		drive.tankDrive(leftSpeed * 0.5, rightSpeed * 0.5);
+		if (ARCADE_DRIVE)
+			drive.arcadeDrive(ySpeed * scalePower * 0.5, xSpeed * scalePower * 0.5);
+		else
+			drive.tankDrive(leftSpeed * 0.5, rightSpeed * 0.5);
 	}
+	/**
+	 * method forwardDist goes forward for a certain distance
+	 * 
+	 * @param dist is how far to go in inches
+	 */
 	public void forwardDist (double dist)
 	{
-		forwardTime (dist / 0.4116);
+		/*
+		 * to calibrate:
+		   * see how far robot goes in 5 seconds
+		   * robot goes X inches per 5 seconds or X/5 inches/sec
+		   * dist / (X/5) would be the appropriate time
+		 */
+		double inches_per_5_seconds = 60;
+		double inches_per_second = inches_per_5_seconds / 5;
+		
+		// goes forward
+		forwardTime (dist / inches_per_second);
 	}
+	/**
+	 * method forwardTime goes forward for a certain amount of time
+	 * @param seconds how many seconds to move forward for
+	 */
 	public void forwardTime (double seconds)
 	{
+		// milliseconds when started
 		double start = System.currentTimeMillis();
 		
+		// as long as the delta time from start to current time is less than seconds * 1000 (to milliseconds)
 		while ((System.currentTimeMillis() - start) < seconds * 1000)
 		{
-			System.out.println (System.currentTimeMillis() - start);
+			// move forward
 			forward ();
 			Timer.delay(0.01);
 		}
 	}
 	/*
 	 * methods to implement for autonomous
-	 * 
-	 * public void forward (double power);
-	 * public void forwardDist (double power, double dist);
-	 * public void forwardTime (double seconds);
 	 * public void turnRight (double degrees);
 	 * public void turnLeft (double degrees);
 	 */	
