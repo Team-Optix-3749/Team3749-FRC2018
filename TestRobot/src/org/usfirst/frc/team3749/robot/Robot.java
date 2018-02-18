@@ -11,12 +11,16 @@ import org.opencv.core.Point;
 import org.opencv.core.Scalar;
 import org.opencv.imgproc.Imgproc;
 
+import com.ctre.phoenix.motorcontrol.ControlMode;
+import com.ctre.phoenix.motorcontrol.can.TalonSRX;
+
 import edu.wpi.cscore.AxisCamera;
 import edu.wpi.cscore.CvSink;
 import edu.wpi.cscore.CvSource;
 import edu.wpi.first.wpilibj.ADXL345_I2C;
 import edu.wpi.first.wpilibj.BuiltInAccelerometer;
 import edu.wpi.first.wpilibj.CameraServer;
+import edu.wpi.first.wpilibj.Encoder;
 import edu.wpi.first.wpilibj.I2C;
 import edu.wpi.first.wpilibj.IterativeRobot;
 import edu.wpi.first.wpilibj.Joystick;
@@ -51,19 +55,33 @@ public class Robot extends IterativeRobot {
 	private SpeedControllerGroup m_left;
 	private SpeedControllerGroup m_right;
 	
-	// main drive object
+	// main drive control
 	private DifferentialDrive drive;
 
-	private SpeedController armMotor;
+	// the main arm
+	private TalonSRX armMotor;
+	
+	// left and right flywheels
 	private SpeedController leftFly;
 	private SpeedController rightFly;
+
+	// the encoder on the main arm
+	private Encoder encoder;
+	
+	// position the arm needs to be at
+	private double targetPos = 0;
+	// max input for the arm
+	private double optSpeed = 0.48;
+	
+	// if autonomous is completed
 	private boolean autoDone;
 	
 	// which drive control, two joystick or one joystick
-	private final boolean ARCADE_DRIVE = true;
+	private boolean arcadeDrive = true;
+	private boolean previousState = false;
 	
 	// how much to scale down general speeds
-	private final double scalePower = .8;
+	private final double scalePower = 0.85;
 	
 	// autonomous speed constants for tank drive
 	private final double leftSpeed = 1; // multiply left speed
@@ -95,9 +113,13 @@ public class Robot extends IterativeRobot {
 		// creates drive system based on let and right speed controller groups
 		drive = new DifferentialDrive(m_left, m_right);
 		
-		// armMotor = new Spark (2);
-		leftFly = new Spark (0);
-		rightFly = new Talon (1);
+		// arm and flywheels
+		armMotor = new TalonSRX (3);
+		leftFly = new Spark (4);
+		rightFly = new Spark (5);
+		
+		// encoder on the arm
+		encoder = new Encoder(2, 3, false, Encoder.EncodingType.k4X);
 		
 		// get the accelerometer on the RoboRIO
 		// accel = new BuiltInAccelerometer();
@@ -109,6 +131,12 @@ public class Robot extends IterativeRobot {
 	public void autonomousInit() {
 		// so that autonomous runs
 		autoDone = false;
+		
+		// sets the encoder to 0
+		encoder.reset();
+		
+		// sets encoder distance units to degrees FIX THIS
+		encoder.setDistancePerPulse (10);
 	}
 	
 	@Override
@@ -130,11 +158,11 @@ public class Robot extends IterativeRobot {
 	
 	@Override
 	public void teleopPeriodic() {
-		// console debugging 
-		
+
+		double speed;
 		while (isOperatorControl() && isEnabled()) {
 			
-			if (ARCADE_DRIVE)
+			if (arcadeDrive)
 			{
 				// reset first in case joysticks are broke
 				drive.arcadeDrive(0, 0);
@@ -143,7 +171,7 @@ public class Robot extends IterativeRobot {
 				 * controls a two joystick drive
 				 * left joystick y for forward/backward and right joystick x for left/right
 				 */
-				drive.arcadeDrive(-stick.getRawAxis(1) * ySpeed * scalePower, stick.getRawAxis(4) * xSpeed * scalePower * (stick.getRawAxis(1) > 0 ? -1 : 1), true);
+				drive.arcadeDrive(-stick.getRawAxis(1) * ySpeed * scalePower, stick.getRawAxis(4) * xSpeed * scalePower * 0.8, true);
 			}
 			else
 			{
@@ -158,18 +186,37 @@ public class Robot extends IterativeRobot {
 				drive.tankDrive (-stick.getRawAxis (1) * scalePower / rightSpeed, -stick.getRawAxis (5) * scalePower / leftSpeed, true);
 			}
 			
+//			if (!stick.getRawButton(2) && previousState)
+//				arcadeDrive = !arcadeDrive;
+//			previousState = stick.getRawButton(2);
+			
 			// other motors
 			
 			// sets main arm to half of speed given from left/right triggers
-			double speed = stick.getRawAxis(3) - stick.getRawAxis(2);
-			armMotor.set (speed * 0.5);
-
+			
+			speed = (stick.getRawAxis(3) - stick.getRawAxis(2)) * 0.8;
+			
+			// limit the absolute value of speed  to 0.48
+			if (speed > 0.5)
+				armMotor.set(ControlMode.PercentOutput, 0.5);
+			else if (speed < -0.5)
+				armMotor.set(ControlMode.PercentOutput, -0.5);
+			else
+				armMotor.set(ControlMode.PercentOutput, speed);
+			
+			if (encoder.getDistance() < 0 && speed < 0)
+				armMotor.set(ControlMode.PercentOutput, 0);
+//			if (encoder.getDistance() > 120 && speed > 0) FIX THIS
+//				armMotor.set(ControlMode.PercentOutput, 0);
+			
+			System.out.println(speed);
+			
 			// sets speed if only one bumper button
 			double flySpeed = 0;
 			if (stick.getRawButton(5) && !stick.getRawButton(6))
-				flySpeed = -0.33;
+				flySpeed = -0.5;
 			if (stick.getRawButton(6) && !stick.getRawButton(5))
-				flySpeed = 0.42;
+				flySpeed = 0.5;
 			
 			// negates right side (motors are upside down)
 			leftFly.set(flySpeed);
@@ -190,19 +237,19 @@ public class Robot extends IterativeRobot {
 	/**
 	 * method forward uses either arcade or tank drive to move forward, based on calibration variables
 	 */
-	public void forward ()
-	{
-		if (ARCADE_DRIVE)
+	private void forward ()
+	{/*
+		if (arcadeDrive)
 			drive.arcadeDrive(ySpeed * scalePower * 0.5, xSpeed * scalePower * 0.5);
 		else
-			drive.tankDrive(leftSpeed * 0.5, rightSpeed * 0.5);
+			drive.tankDrive(leftSpeed * 0.5, rightSpeed * 0.5);*/
 	}
 	/**
 	 * method forwardDist goes forward for a certain distance
 	 * 
 	 * @param dist is how far to go in inches
 	 */
-	public void forwardDist (double dist)
+	private void forwardDist (double dist)
 	{
 		/*
 		 * to calibrate:
@@ -220,7 +267,7 @@ public class Robot extends IterativeRobot {
 	 * method forwardTime goes forward for a certain amount of time
 	 * @param seconds how many seconds to move forward for
 	 */
-	public void forwardTime (double seconds)
+	private void forwardTime (double seconds)
 	{
 		// milliseconds when started
 		double start = System.currentTimeMillis();
