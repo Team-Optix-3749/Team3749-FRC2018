@@ -6,22 +6,16 @@
 /*----------------------------------------------------------------------------*/
 
 package org.usfirst.frc.team3749.robot;
-import org.opencv.core.Mat;
-import org.opencv.core.Point;
-import org.opencv.core.Scalar;
-import org.opencv.imgproc.Imgproc;
 
 import com.ctre.phoenix.motorcontrol.ControlMode;
 import com.ctre.phoenix.motorcontrol.can.TalonSRX;
 
-import edu.wpi.cscore.AxisCamera;
-import edu.wpi.cscore.CvSink;
-import edu.wpi.cscore.CvSource;
-import edu.wpi.first.wpilibj.ADXL345_I2C;
-import edu.wpi.first.wpilibj.BuiltInAccelerometer;
-import edu.wpi.first.wpilibj.CameraServer;
+import edu.wpi.first.wpilibj.DriverStation;
+
+// import com.ctre.phoenix.motorcontrol.ControlMode;
+// import com.ctre.phoenix.motorcontrol.can.TalonSRX;
+
 import edu.wpi.first.wpilibj.Encoder;
-import edu.wpi.first.wpilibj.I2C;
 import edu.wpi.first.wpilibj.IterativeRobot;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.Spark;
@@ -30,7 +24,6 @@ import edu.wpi.first.wpilibj.SpeedControllerGroup;
 import edu.wpi.first.wpilibj.Talon;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.drive.DifferentialDrive;
-import edu.wpi.first.wpilibj.interfaces.Accelerometer;
 
 /**
  * Robot class controls robot for teleop and autonomous for Team 3749.
@@ -39,9 +32,6 @@ import edu.wpi.first.wpilibj.interfaces.Accelerometer;
  * @date February 10, 2018
  */
 public class Robot extends IterativeRobot {
-	// Camera thread
-	// Thread m_visionThread;
-
 	// accesses controller
 	private Joystick stick;
 	
@@ -68,17 +58,13 @@ public class Robot extends IterativeRobot {
 	// the encoder on the main arm
 	private Encoder encoder;
 	
-	// position the arm needs to be at
-	private double targetPos = 0;
-	// max input for the arm
-	private double optSpeed = 0.48;
+	private AutoDrive auto;
 	
 	// if autonomous is completed
 	private boolean autoDone;
 	
 	// which drive control, two joystick or one joystick
 	private boolean arcadeDrive = true;
-	private boolean previousState = false;
 	
 	// how much to scale down general speeds
 	private final double scalePower = 0.85;
@@ -89,7 +75,7 @@ public class Robot extends IterativeRobot {
 
 	// autonomous speed constants for arcade drive
 	private double ySpeed = 1;
-	private double xSpeed = .85; // goes a bit left more
+	private double xSpeed = 1; // goes a bit left more
 	
 	/**
 	 * method robotInit is run to initialize the robot at the very beginning, used like a constructor
@@ -121,10 +107,8 @@ public class Robot extends IterativeRobot {
 		// encoder on the arm
 		encoder = new Encoder(2, 3, false, Encoder.EncodingType.k4X);
 		
-		// get the accelerometer on the RoboRIO
-		// accel = new BuiltInAccelerometer();
-		
-		// pMillis = System.currentTimeMillis();
+		// creates an autonomous drive system with no gyro
+		auto = new AutoDrive (drive, null);
 	}
 	
 	@Override
@@ -144,11 +128,90 @@ public class Robot extends IterativeRobot {
 		
 		while (isEnabled() && !autoDone)
 		{	
-			// forward for 5 seconds
-			forwardTime (5);
+			// gets the game data, a string like "LRR" which gives the positions of the alliance's switches/scale
+			String gameData = DriverStation.getInstance().getGameSpecificMessage();
+			
+			// what position the robot will start at (left = 0, middle = 1, right = 2)
+			int roboPos = 0;
+			
+			// activate FLL level encapsulation
+			
+			switch (roboPos)
+			{
+				case 0: // left
+				   	if(gameData.charAt(0) == 'L') // our switch on left
+				   	{
+						// move to the box release position
+						setArm(90);
+				   		auto.forwardDist(140);
+				   		auto.turn(90);
+				   		releaseBox(0.6);
+						// get out of the way
+						auto.turn(-90);
+						auto.forwardDist(100);
+				   	}
+				   	else if (gameData.charAt(0) == 'R') // our switch on right
+				   	{
+						// move to the box release position
+						setArm(90);
+				   		auto.forwardDist(230);
+				   		auto.turn(90);
+				   		auto.forwardDist(140);
+				   		auto.turn(90);
+				   		releaseBox(1);
+				   	}
+					break;
+				case 2: // right
+				   	if(gameData.charAt(0) == 'R') // our switch on right
+				   	{
+				   		// move to the box release position
+						setArm(90);
+				   		auto.forwardDist(140);
+				   		auto.turn(-90);
+				   		releaseBox(0.6);
+				   		// get out of the way
+				   		auto.turn(-90);
+				   		auto.forwardDist(100);
+				   	}
+				   	else if (gameData.charAt(0) == 'L') // our switch on left
+				   	{
+						setArm(90);
+				   		auto.forwardDist(230);
+				   		auto.turn(-90);
+				   		auto.forwardDist(140);
+				   		auto.turn(-90);
+				   		releaseBox(1);
+				   	}
+					break;
+				case 1: // middle
+				   	if(gameData.charAt(0) == 'R') // our switch on right
+				   	{
+						setArm(90);
+				   		auto.forwardDist(20);
+				   		auto.turn(10);
+				   		auto.forwardDist(60);
+				   		auto.turn(-10);
+				   		releaseBox(1);
+				   		auto.turn(90);
+				   		auto.forwardDist(60);
+				   		auto.turn(-90);
+				   		auto.forwardDist(80);
+				   	}
+				   	else if (gameData.charAt(0) == 'L') // our switch on left
+				   	{
+						setArm(90);
+				   		auto.forwardDist(60);
+				   		auto.turn(-90);
+				   		auto.forwardDist(90);
+				   		auto.turn(90);
+				   		auto.forwardDist(60);
+				   		auto.turn(90);
+				   		releaseBox(1);
+				   	}
+					break;
+			}
 			autoDone = true;
-		}
-		
+		}		
 	}
 
 	@Override
@@ -186,10 +249,6 @@ public class Robot extends IterativeRobot {
 				drive.tankDrive (-stick.getRawAxis (1) * scalePower / rightSpeed, -stick.getRawAxis (5) * scalePower / leftSpeed, true);
 			}
 			
-//			if (!stick.getRawButton(2) && previousState)
-//				arcadeDrive = !arcadeDrive;
-//			previousState = stick.getRawButton(2);
-			
 			// other motors
 			
 			// sets main arm to half of speed given from left/right triggers
@@ -214,9 +273,9 @@ public class Robot extends IterativeRobot {
 			// sets speed if only one bumper button
 			double flySpeed = 0;
 			if (stick.getRawButton(5) && !stick.getRawButton(6))
-				flySpeed = -0.5;
+				flySpeed = -0.3;
 			if (stick.getRawButton(6) && !stick.getRawButton(5))
-				flySpeed = 0.5;
+				flySpeed = 0.8;
 			
 			// negates right side (motors are upside down)
 			leftFly.set(flySpeed);
@@ -234,56 +293,43 @@ public class Robot extends IterativeRobot {
 		}
 		
 	}
+	
 	/**
-	 * method forward uses either arcade or tank drive to move forward, based on calibration variables
+	 * method releaseBox shoots the box out by settings the flywheels power for 2 seconds
+	 * @param power - how fast to shoot (0 to 1)
 	 */
-	private void forward ()
-	{/*
-		if (arcadeDrive)
-			drive.arcadeDrive(ySpeed * scalePower * 0.5, xSpeed * scalePower * 0.5);
-		else
-			drive.tankDrive(leftSpeed * 0.5, rightSpeed * 0.5);*/
-	}
-	/**
-	 * method forwardDist goes forward for a certain distance
-	 * 
-	 * @param dist is how far to go in inches
-	 */
-	private void forwardDist (double dist)
-	{
-		/*
-		 * to calibrate:
-		   * see how far robot goes in 5 seconds
-		   * robot goes X inches per 5 seconds or X/5 inches/sec
-		   * dist / (X/5) would be the appropriate time
-		 */
-		double inches_per_5_seconds = 60;
-		double inches_per_second = inches_per_5_seconds / 5;
-		
-		// goes forward
-		forwardTime (dist / inches_per_second);
-	}
-	/**
-	 * method forwardTime goes forward for a certain amount of time
-	 * @param seconds how many seconds to move forward for
-	 */
-	private void forwardTime (double seconds)
+	private void releaseBox (double power)
 	{
 		// milliseconds when started
 		double start = System.currentTimeMillis();
 		
 		// as long as the delta time from start to current time is less than seconds * 1000 (to milliseconds)
-		while ((System.currentTimeMillis() - start) < seconds * 1000)
+		while ((System.currentTimeMillis() - start) < 2000)
 		{
-			// move forward
-			forward ();
+			// negative means out
+			leftFly.set(-1 * Math.abs(power));
+			rightFly.set(Math.abs(power));
 			Timer.delay(0.01);
 		}
 	}
-	/*
-	 * methods to implement for autonomous
-	 * public void turnRight (double degrees);
-	 * public void turnLeft (double degrees);
-	 */	
-	
+	/**
+	 * method setArm - sets an arm to a specific position from the encoder, 0 is upright, directly forward is 90
+	 * @param degrees - which angle to be at, 0 = vertical
+	 */
+	private void setArm (double degrees)
+	{
+		// if current position is too big, move negatively
+		int direction = encoder.getDistance() > degrees ? -1 : 1;
+		double start = System.currentTimeMillis();
+		
+		// restrict to the endpoints
+		degrees = Math.min(Math.max(degrees, 0), 120); // fix this
+		
+		// as long as the delta time from start to current time is less than seconds * 1000 (to milliseconds)
+		while (Math.abs(encoder.getDistance() - degrees) > 5)
+		{
+			armMotor.set(ControlMode.PercentOutput, direction * Math.min((System.currentTimeMillis() - start)/2000, 0.4));
+			Timer.delay(0.01);
+		}
+	}
 }
