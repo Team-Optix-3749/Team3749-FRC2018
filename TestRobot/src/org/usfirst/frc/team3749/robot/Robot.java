@@ -29,7 +29,7 @@ import edu.wpi.first.wpilibj.drive.DifferentialDrive;
  * Robot class controls robot for teleop and autonomous for Team 3749.
  * 
  * @author Team Optix
- * @date February 10, 2018
+ * @date February 18, 2018
  */
 public class Robot extends IterativeRobot {
 	// accesses controller
@@ -54,9 +54,6 @@ public class Robot extends IterativeRobot {
 	// left and right flywheels
 	private SpeedController leftFly;
 	private SpeedController rightFly;
-
-	// the encoder on the main arm
-	private Encoder encoder;
 	
 	private AutoDrive auto;
 	
@@ -75,7 +72,9 @@ public class Robot extends IterativeRobot {
 
 	// autonomous speed constants for arcade drive
 	private double ySpeed = 1;
-	private double xSpeed = 1; // goes a bit left more
+	private double xSpeed = 1.1; // goes a bit more right
+	
+	private double encoderScale = 1;
 	
 	/**
 	 * method robotInit is run to initialize the robot at the very beginning, used like a constructor
@@ -100,12 +99,9 @@ public class Robot extends IterativeRobot {
 		drive = new DifferentialDrive(m_left, m_right);
 		
 		// arm and flywheels
-		armMotor = new TalonSRX (3);
+		armMotor = new TalonSRX (42);
 		leftFly = new Spark (4);
 		rightFly = new Spark (5);
-		
-		// encoder on the arm
-		encoder = new Encoder(2, 3, false, Encoder.EncodingType.k4X);
 		
 		// creates an autonomous drive system with no gyro
 		auto = new AutoDrive (drive, null);
@@ -117,10 +113,10 @@ public class Robot extends IterativeRobot {
 		autoDone = false;
 		
 		// sets the encoder to 0
-		encoder.reset();
+		reset();
 		
 		// sets encoder distance units to degrees FIX THIS
-		encoder.setDistancePerPulse (10);
+		encoderScale = 1;
 	}
 	
 	@Override
@@ -136,6 +132,7 @@ public class Robot extends IterativeRobot {
 			
 			// activate FLL level encapsulation
 			
+			// there are 3 places the robot can start
 			switch (roboPos)
 			{
 				case 0: // left
@@ -210,6 +207,7 @@ public class Robot extends IterativeRobot {
 				   	}
 					break;
 			}
+			// please don't keep running through autonomous when done :P
 			autoDone = true;
 		}		
 	}
@@ -234,7 +232,7 @@ public class Robot extends IterativeRobot {
 				 * controls a two joystick drive
 				 * left joystick y for forward/backward and right joystick x for left/right
 				 */
-				drive.arcadeDrive(-stick.getRawAxis(1) * ySpeed * scalePower, stick.getRawAxis(4) * xSpeed * scalePower * 0.8, true);
+				drive.arcadeDrive(-stick.getRawAxis(1) * ySpeed * scalePower, stick.getRawAxis(4) * xSpeed * scalePower, true);
 			}
 			else
 			{
@@ -253,29 +251,29 @@ public class Robot extends IterativeRobot {
 			
 			// sets main arm to half of speed given from left/right triggers
 			
-			speed = (stick.getRawAxis(3) - stick.getRawAxis(2)) * 0.8;
+			speed = (stick.getRawAxis(2) - stick.getRawAxis(3)) * 0.5;
 			
 			// limit the absolute value of speed  to 0.48
-			if (speed > 0.5)
-				armMotor.set(ControlMode.PercentOutput, 0.5);
-			else if (speed < -0.5)
-				armMotor.set(ControlMode.PercentOutput, -0.5);
-			else
-				armMotor.set(ControlMode.PercentOutput, speed);
+			armMotor.set(ControlMode.PercentOutput, speed);
 			
-			if (encoder.getDistance() < 0 && speed < 0)
+			// if no input
+			if (speed == 0)
+				armMotor.set(ControlMode.PercentOutput, -getRate() / 1000000);
+			/*
+			if (getAngle() < 0 && speed < 0)
 				armMotor.set(ControlMode.PercentOutput, 0);
-//			if (encoder.getDistance() > 120 && speed > 0) FIX THIS
-//				armMotor.set(ControlMode.PercentOutput, 0);
-			
-			System.out.println(speed);
+			if (getAngle() > 120 && speed > 0) // FIX THIS
+				armMotor.set(ControlMode.PercentOutput, 0);
+			*/
+			System.out.println("Angle: " + getAngle()/12000);
+			System.out.println("Velocity: " + -getRate()/1000000);
 			
 			// sets speed if only one bumper button
 			double flySpeed = 0;
 			if (stick.getRawButton(5) && !stick.getRawButton(6))
-				flySpeed = -0.3;
-			if (stick.getRawButton(6) && !stick.getRawButton(5))
 				flySpeed = 0.8;
+			if (stick.getRawButton(6) && !stick.getRawButton(5))
+				flySpeed = -1;
 			
 			// negates right side (motors are upside down)
 			leftFly.set(flySpeed);
@@ -303,7 +301,7 @@ public class Robot extends IterativeRobot {
 		// milliseconds when started
 		double start = System.currentTimeMillis();
 		
-		// as long as the delta time from start to current time is less than seconds * 1000 (to milliseconds)
+		// as long as the delta time from start to current time is less than 2000ms, 2s
 		while ((System.currentTimeMillis() - start) < 2000)
 		{
 			// negative means out
@@ -319,17 +317,40 @@ public class Robot extends IterativeRobot {
 	private void setArm (double degrees)
 	{
 		// if current position is too big, move negatively
-		int direction = encoder.getDistance() > degrees ? -1 : 1;
+		int direction = getAngle() > degrees ? -1 : 1;
 		double start = System.currentTimeMillis();
 		
 		// restrict to the endpoints
 		degrees = Math.min(Math.max(degrees, 0), 120); // fix this
 		
-		// as long as the delta time from start to current time is less than seconds * 1000 (to milliseconds)
-		while (Math.abs(encoder.getDistance() - degrees) > 5)
+		// as long as the angle and the target angle is greater than 5 away
+		while (Math.abs(getAngle() - degrees) > 5)
 		{
 			armMotor.set(ControlMode.PercentOutput, direction * Math.min((System.currentTimeMillis() - start)/2000, 0.4));
 			Timer.delay(0.01);
 		}
+	}
+	/**
+	 * method getAngle - gets the angle  of the motor
+	 * @return angle
+	 */
+	private double getAngle ()
+	{
+		return armMotor.getSelectedSensorPosition(0) * encoderScale;
+	}
+	/**
+	 * method getRate - gets the rate of the main arm motor, but converted to degrees/second
+	 * @return the rate in degrees
+	 */
+	private double getRate ()
+	{
+		return armMotor.getSelectedSensorVelocity(0) * encoderScale;
+	}
+	/**
+	 * method reset - sets the encoder value to 0
+	 */
+	private void reset()
+	{
+		armMotor.setSelectedSensorPosition(0, 0, 100);
 	}
 }
