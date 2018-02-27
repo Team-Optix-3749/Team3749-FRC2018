@@ -243,6 +243,8 @@ public class Robot extends IterativeRobot {
 				 * two joystick control
 				 * gets the y of the left and right joysticks and inverts
 				 * divides by opposite power (instead of multiplying) to stay at fastest speed possible
+				 * 
+				 * slow and does not turn rght very well
 				 */
 				drive.tankDrive (-stick.getRawAxis (1) * scalePower / rightSpeed, -stick.getRawAxis (5) * scalePower / leftSpeed, true);
 			}
@@ -257,8 +259,8 @@ public class Robot extends IterativeRobot {
 			armMotor.set(ControlMode.PercentOutput, speed);
 			
 			// if no input
-			if (speed == 0)
-				armMotor.set(ControlMode.PercentOutput, -getRate() / 1000000);
+			if (getRate() > 0 && speed == 0)
+				armMotor.set(ControlMode.PercentOutput, -getRate() / 500000);
 			/*
 			if (getAngle() < 0 && speed < 0)
 				armMotor.set(ControlMode.PercentOutput, 0);
@@ -266,7 +268,7 @@ public class Robot extends IterativeRobot {
 				armMotor.set(ControlMode.PercentOutput, 0);
 			*/
 			System.out.println("Angle: " + getAngle()/12000);
-			System.out.println("Velocity: " + -getRate()/1000000);
+			System.out.println("Velocity: " + getRate()/50000);
 			
 			// sets speed if only one bumper button
 			double flySpeed = 0;
@@ -344,7 +346,7 @@ public class Robot extends IterativeRobot {
 	 */
 	private double getRate ()
 	{
-		return armMotor.getSelectedSensorVelocity(0) * encoderScale;
+		return armMotor.getSelectedSensorVelocity(0) * -encoderScale;
 	}
 	/**
 	 * method reset - sets the encoder value to 0
