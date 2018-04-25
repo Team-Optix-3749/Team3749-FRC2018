@@ -99,12 +99,18 @@ public class Robot extends IterativeRobot {
 		drive = new DifferentialDrive(m_left, m_right);
 		
 		// arm and flywheels
-		armMotor = new TalonSRX (42);
+		armMotor = new TalonSRX (42); // what ID should we use? 42
 		leftFly = new Spark (4);
 		rightFly = new Spark (5);
 		
 		// creates an autonomous drive system with no gyro
 		auto = new AutoDrive (drive, null);
+		
+		// sets encoder distance units to degrees (scales values WAY down!)
+		encoderScale = 0.000830718376357;
+		
+		// sets the encoder to 0
+		resetEncoder();
 	}
 	
 	@Override
@@ -113,10 +119,8 @@ public class Robot extends IterativeRobot {
 		autoDone = false;
 		
 		// sets the encoder to 0
-		reset();
+		resetEncoder();
 		
-		// sets encoder distance units to degrees FIX THIS
-		encoderScale = 1;
 	}
 	
 	@Override
@@ -127,8 +131,8 @@ public class Robot extends IterativeRobot {
 			// gets the game data, a string like "LRR" which gives the positions of the alliance's switches/scale
 			String gameData = DriverStation.getInstance().getGameSpecificMessage();
 			
-			// what position the robot will start at (left = 0, middle = 1, right = 2)
-			int roboPos = 0;
+			// what position the robot will start at (left = 0, middle = 1, right = 2, middle + shooting the box = 4)
+			int roboPos = 2;
 			
 			// activate FLL level encapsulation
 			
@@ -136,77 +140,79 @@ public class Robot extends IterativeRobot {
 			switch (roboPos)
 			{
 				case 0: // left
-				   	if(gameData.charAt(0) == 'L') // our switch on left
-				   	{
-						// move to the box release position
-						setArm(90);
-				   		auto.forwardDist(140);
-				   		auto.turn(90);
-				   		releaseBox(0.6);
-						// get out of the way
-						auto.turn(-90);
-						auto.forwardDist(100);
-				   	}
-				   	else if (gameData.charAt(0) == 'R') // our switch on right
-				   	{
-						// move to the box release position
-						setArm(90);
-				   		auto.forwardDist(230);
-				   		auto.turn(90);
-				   		auto.forwardDist(140);
-				   		auto.turn(90);
-				   		releaseBox(1);
-				   	}
+					// move up to next to right side of switch
+					auto.forwardDist(142);
+
+					// if robot is on the correct side of the switch
+					if (gameData.charAt(0) == 'L')
+					{
+						// face the switch
+						auto.turn(80);
+						auto.forwardDist(15);
+						
+						// move the arm down for 0.75 seconds
+						armTime(true, 0.75);
+						Timer.delay(0.5);
+						releaseBox(0.8);
+					}
+					else
+					{
+						auto.forwardDist(50);
+					}
 					break;
 				case 2: // right
-				   	if(gameData.charAt(0) == 'R') // our switch on right
-				   	{
-				   		// move to the box release position
-						setArm(90);
-				   		auto.forwardDist(140);
-				   		auto.turn(-90);
-				   		releaseBox(0.6);
-				   		// get out of the way
-				   		auto.turn(-90);
-				   		auto.forwardDist(100);
-				   	}
-				   	else if (gameData.charAt(0) == 'L') // our switch on left
-				   	{
-						setArm(90);
-				   		auto.forwardDist(230);
-				   		auto.turn(-90);
-				   		auto.forwardDist(140);
-				   		auto.turn(-90);
-				   		releaseBox(1);
-				   	}
+					// move up to next to right side of switch
+					auto.forwardDist(142);
+
+					// if robot is on the correct side of the switch
+					if (gameData.charAt(0) == 'R')
+					{
+						// face the switch
+						auto.turn(-80);
+						auto.forwardDist(15);
+						
+						// move the arm down for 0.75 seconds
+						armTime(true, 0.75);
+						Timer.delay(0.5);
+						releaseBox(0.8);
+					}
+					else
+					{
+						auto.forwardDist(50);
+					}
 					break;
 				case 1: // middle
-				   	if(gameData.charAt(0) == 'R') // our switch on right
-				   	{
-						setArm(90);
-				   		auto.forwardDist(20);
-				   		auto.turn(10);
-				   		auto.forwardDist(60);
-				   		auto.turn(-10);
-				   		releaseBox(1);
-				   		auto.turn(90);
-				   		auto.forwardDist(60);
-				   		auto.turn(-90);
-				   		auto.forwardDist(80);
-				   	}
-				   	else if (gameData.charAt(0) == 'L') // our switch on left
-				   	{
-						setArm(90);
-				   		auto.forwardDist(60);
-				   		auto.turn(-90);
-				   		auto.forwardDist(90);
-				   		auto.turn(90);
-				   		auto.forwardDist(60);
-				   		auto.turn(90);
-				   		releaseBox(1);
-				   	}
-					break;
+					auto.forwardDist(35);
+					if (gameData.charAt(0) == 'L')
+					{
+						auto.turn(-80);
+						auto.forwardDist(50);
+						auto.turn(80);
+					}
+					else
+					{
+						auto.turn(80);
+						auto.forwardDist(40);
+						auto.turn(-80);
+					}
+					auto.forwardDist(80);
+					armTime(true, 1.15);
+					Timer.delay(1);
+					releaseBox(0.8);
+				   	break;
+				   	
+				case 4:
+					auto.forwardDist(50);
+					auto.turn(90);
+					armTime(true, 1.15);
+					Timer.delay(1);
+					releaseBox(0.8);
+					auto.turn(90);
+
+				   	break;
+				   		
 			}
+			
 			// please don't keep running through autonomous when done :P
 			autoDone = true;
 		}		
@@ -232,7 +238,7 @@ public class Robot extends IterativeRobot {
 				 * controls a two joystick drive
 				 * left joystick y for forward/backward and right joystick x for left/right
 				 */
-				drive.arcadeDrive(-stick.getRawAxis(1) * ySpeed * scalePower, stick.getRawAxis(4) * xSpeed * scalePower, true);
+				drive.arcadeDrive(-stick.getRawAxis(1) * ySpeed * scalePower, stick.getRawAxis(4) * scalePower + 0.4 * -stick.getRawAxis(1), true);
 			}
 			else
 			{
@@ -246,36 +252,36 @@ public class Robot extends IterativeRobot {
 				 * 
 				 * slow and does not turn rght very well
 				 */
-				drive.tankDrive (-stick.getRawAxis (1) * scalePower / rightSpeed, -stick.getRawAxis (5) * scalePower / leftSpeed, true);
+				drive.tankDrive (-stick.getRawAxis (1) * scalePower / rightSpeed, -stick.getRawAxis (3) * scalePower / leftSpeed, true);
 			}
 			
 			// other motors
 			
 			// sets main arm to half of speed given from left/right triggers
-			
+			// limit the absolute value of speed  to 0.5
 			speed = (stick.getRawAxis(2) - stick.getRawAxis(3)) * 0.5;
 			
-			// limit the absolute value of speed  to 0.48
 			armMotor.set(ControlMode.PercentOutput, speed);
+			
+			double pid = -Math.abs(getRate() / 7);
 			
 			// if no input
 			if (getRate() > 0 && speed == 0)
-				armMotor.set(ControlMode.PercentOutput, -getRate() / 500000);
+				armMotor.set(ControlMode.PercentOutput, pid);
 			/*
 			if (getAngle() < 0 && speed < 0)
 				armMotor.set(ControlMode.PercentOutput, 0);
-			if (getAngle() > 120 && speed > 0) // FIX THIS
+			if (getAngle() > 115 && speed > 0)
 				armMotor.set(ControlMode.PercentOutput, 0);
 			*/
-			System.out.println("Angle: " + getAngle()/12000);
-			System.out.println("Velocity: " + getRate()/50000);
 			
 			// sets speed if only one bumper button
-			double flySpeed = 0;
+			double flySpeed = 0.2; // otherwise default is 0.2 (holds at all times)
+			
 			if (stick.getRawButton(5) && !stick.getRawButton(6))
-				flySpeed = 0.8;
+				flySpeed = 0.8; // pull in at 4/5 speed
 			if (stick.getRawButton(6) && !stick.getRawButton(5))
-				flySpeed = -1;
+				flySpeed = -0.8; // release 4/5 speed!
 			
 			// negates right side (motors are upside down)
 			leftFly.set(flySpeed);
@@ -290,6 +296,7 @@ public class Robot extends IterativeRobot {
 		
 		while (isEnabled()) {
 			Timer.delay(0.01);
+			
 		}
 		
 	}
@@ -298,45 +305,74 @@ public class Robot extends IterativeRobot {
 	 * method releaseBox shoots the box out by settings the flywheels power for 2 seconds
 	 * @param power - how fast to shoot (0 to 1)
 	 */
-	private void releaseBox (double power)
+	public void releaseBox (double power)
 	{
 		// milliseconds when started
 		double start = System.currentTimeMillis();
 		
-		// as long as the delta time from start to current time is less than 2000ms, 2s
-		while ((System.currentTimeMillis() - start) < 2000)
+		// as long as the delta time from start to current time is less than 1000ms, 1s
+		while ((System.currentTimeMillis() - start) < 1000)
 		{
 			// negative means out
 			leftFly.set(-1 * Math.abs(power));
 			rightFly.set(Math.abs(power));
 			Timer.delay(0.01);
 		}
+		
+		leftFly.set(0);
+		rightFly.set(0);
 	}
 	/**
 	 * method setArm - sets an arm to a specific position from the encoder, 0 is upright, directly forward is 90
 	 * @param degrees - which angle to be at, 0 = vertical
 	 */
-	private void setArm (double degrees)
+	public void setArm (double degrees)
 	{
 		// if current position is too big, move negatively
 		int direction = getAngle() > degrees ? -1 : 1;
+		int oldDirection = direction;
+		double speed = 0.3;
 		double start = System.currentTimeMillis();
 		
 		// restrict to the endpoints
-		degrees = Math.min(Math.max(degrees, 0), 120); // fix this
+		degrees = Math.min(Math.max(degrees, 0), 115);
 		
 		// as long as the angle and the target angle is greater than 5 away
 		while (Math.abs(getAngle() - degrees) > 5)
 		{
-			armMotor.set(ControlMode.PercentOutput, direction * Math.min((System.currentTimeMillis() - start)/2000, 0.4));
+			armMotor.set(ControlMode.PercentOutput, direction * Math.min((System.currentTimeMillis() - start)/2000, speed));
+			Timer.delay(0.01);
+			
+			// updates angle if it went to far, decreases speed
+			direction = getAngle() > degrees ? -1 : 1;
+			if (direction != oldDirection)
+				speed /= 1.1;
+			oldDirection = direction;
+		}
+	}
+	/**
+	 * method armTime moves the robot's arm down or up for a certain amount of time
+	 * @param down - if the arm should go down
+	 * @param seconds - how long the arm moves for
+	 */
+	public void armTime (boolean down, double seconds)
+	{
+		// milliseconds when started
+		double start = System.currentTimeMillis();
+		
+		// as long as the delta time from start to current time is less than seconds * 1000 (to milliseconds)
+		while ((System.currentTimeMillis() - start) < seconds * 1000)
+		{
+			armMotor.set(ControlMode.PercentOutput, 0.2 * (down ? 1 : -1));
 			Timer.delay(0.01);
 		}
+		armMotor.set(ControlMode.PercentOutput, -0.12);
 	}
 	/**
 	 * method getAngle - gets the angle  of the motor
 	 * @return angle
 	 */
-	private double getAngle ()
+	public double getAngle ()
 	{
 		return armMotor.getSelectedSensorPosition(0) * encoderScale;
 	}
@@ -344,14 +380,14 @@ public class Robot extends IterativeRobot {
 	 * method getRate - gets the rate of the main arm motor, but converted to degrees/second
 	 * @return the rate in degrees
 	 */
-	private double getRate ()
+	public double getRate ()
 	{
 		return armMotor.getSelectedSensorVelocity(0) * -encoderScale;
 	}
 	/**
 	 * method reset - sets the encoder value to 0
 	 */
-	private void reset()
+	public void resetEncoder()
 	{
 		armMotor.setSelectedSensorPosition(0, 0, 100);
 	}

@@ -15,19 +15,18 @@ public class AutoDrive {
 	private Gyro gyro;
 	
 	// whether to go arcade drive or tank drive
-	private final boolean arcadeDrive = true;
+	private final boolean arcadeDrive = false;
 
 	// how much to scale down general speeds
-	private final double scalePower = 0.85;
+	private final double scalePower = 0.7;
 	
 	// autonomous speed constants for tank drive
-	private final double leftSpeed = 1; // multiply left speed
+	private final double leftSpeed = 1.12; // multiply left speed
 	private final double rightSpeed = 1; // multiply right speed
 
 	// autonomous speed constants for arcade drive
-	private double ySpeed = 1;
-	private double xSpeed = 1;
-	
+	private double xShift = 0.3;
+
 	/**
 	 * constructor AutoDrive creates a autonomous driving object based on the drive system and a gyro
 	 * @param drive - the main driving system
@@ -39,15 +38,24 @@ public class AutoDrive {
 		this.gyro = gyro;
 	}
 	/**
+	 * constructor AutoDrive creates a autonomous driving object based on the drive system without gyro
+	 * @param drive - the main driving system
+	 */
+	public AutoDrive (DifferentialDrive drive)
+	{
+		this.drive = drive;
+		this.gyro = null;
+	}
+	/**
 	 * method forward uses either arcade or tank drive to move forward, based on calibration variables
 	 * @param speed - how fast to go (0 to 1)
 	 */
 	public void forward (double speed)
 	{
-		if (arcadeDrive)
-			drive.arcadeDrive(ySpeed * scalePower * Math.abs(speed), xSpeed * scalePower * Math.abs(speed));
+		  if (arcadeDrive)
+			drive.arcadeDrive(scalePower * Math.abs(speed), xShift);
 		else
-			drive.tankDrive(leftSpeed * speed, rightSpeed * speed);
+			drive.tankDrive(leftSpeed * speed * scalePower , rightSpeed * speed * scalePower);
 	}
 	/**
 	 * method forwardDist goes forward for a certain distance
@@ -62,8 +70,8 @@ public class AutoDrive {
 		   * see how far robot goes in 0.5 seconds (slow start)
 		   * for t > 0.5 constant speed, but t < 0.5 acceleration is constant (speed is increasing)
 		 */
-		double inches_per_5_seconds = 60; // FIX THIS
-		double inches_per_half_second = 10; // FIX THIS
+		double inches_per_5_seconds = 94;
+		double inches_per_half_second = 6;
 		double inches_per_second = (inches_per_5_seconds - inches_per_half_second) / 4.5; // account for the slow start
 		
 		// goes forward
@@ -100,8 +108,8 @@ public class AutoDrive {
 	public void turn (double degrees)
 	{
 		// use a protractor
-		int degrees_per_second = 120; // FIX THIS
-		turnTime (degrees < 0, degrees / degrees_per_second);
+		double degrees_per_second = 70.88 * 1.32;
+		turnTime (degrees < 0, Math.abs(degrees) / degrees_per_second);
 	}
 	/**
 	 * method turnTime - turns the robot for an amount of seconds
@@ -117,7 +125,7 @@ public class AutoDrive {
 		while ((System.currentTimeMillis() - start) < seconds * 1000)
 		{
 			// turn but don't go forward, left means negative
-			drive.arcadeDrive (0, (left ? -1 : 1) * 0.4);
+			drive.arcadeDrive (0, (left ? -1 : 1) * 0.7);
 
 			Timer.delay(0.01);
 		}
