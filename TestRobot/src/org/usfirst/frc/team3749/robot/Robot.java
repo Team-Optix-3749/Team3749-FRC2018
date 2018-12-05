@@ -10,6 +10,7 @@ package org.usfirst.frc.team3749.robot;
 import com.ctre.phoenix.motorcontrol.ControlMode;
 import com.ctre.phoenix.motorcontrol.can.TalonSRX;
 
+import edu.wpi.first.wpilibj.ADXRS450_Gyro;
 import edu.wpi.first.wpilibj.DriverStation;
 
 // import com.ctre.phoenix.motorcontrol.ControlMode;
@@ -64,7 +65,7 @@ public class Robot extends IterativeRobot {
 	private boolean arcadeDrive = true;
 	
 	// how much to scale down general speeds
-	private final double scalePower = 0.85;
+	private final double scalePower = 0.9;
 	
 	// autonomous speed constants for tank drive
 	private final double leftSpeed = 1; // multiply left speed
@@ -76,6 +77,8 @@ public class Robot extends IterativeRobot {
 	
 	private double encoderScale = 1;
 	
+	//private ADXRS450_Gyro gyro;
+		
 	/**
 	 * method robotInit is run to initialize the robot at the very beginning, used like a constructor
 	 */
@@ -109,12 +112,15 @@ public class Robot extends IterativeRobot {
 		// sets encoder distance units to degrees (scales values WAY down!)
 		encoderScale = 0.000830718376357;
 		
+		// gyro = new ADXRS450_Gyro();
+		
 		// sets the encoder to 0
 		resetEncoder();
 	}
 	
 	@Override
-	public void autonomousInit() {
+	public void autonomousInit() 
+	{
 		// so that autonomous runs
 		autoDone = false;
 		
@@ -124,7 +130,8 @@ public class Robot extends IterativeRobot {
 	}
 	
 	@Override
-	public void autonomousPeriodic() {
+	public void autonomousPeriodic() 
+	{
 		
 		while (isEnabled() && !autoDone)
 		{	
@@ -238,7 +245,7 @@ public class Robot extends IterativeRobot {
 				 * controls a two joystick drive
 				 * left joystick y for forward/backward and right joystick x for left/right
 				 */
-				drive.arcadeDrive(-stick.getRawAxis(1) * ySpeed * scalePower, stick.getRawAxis(4) * scalePower + 0.4 * -stick.getRawAxis(1), true);
+				drive.arcadeDrive(-stick.getRawAxis(1) * ySpeed * scalePower, stick.getRawAxis(0) * scalePower + 0.4 * -stick.getRawAxis(1), true);
 			}
 			else
 			{
@@ -276,8 +283,11 @@ public class Robot extends IterativeRobot {
 			*/
 			
 			// sets speed if only one bumper button
-			double flySpeed = 0.2; // otherwise default is 0.2 (holds at all times)
-			
+			double flySpeed = 0.0; // otherwise default is 0.2 (holds at all times)
+			System.out.println(getAngle());
+			int armAngle = (int) getAngle();
+			if (armAngle >= 20)
+				flySpeed = 0.2;
 			if (stick.getRawButton(5) && !stick.getRawButton(6))
 				flySpeed = 0.8; // pull in at 4/5 speed
 			if (stick.getRawButton(6) && !stick.getRawButton(5))
@@ -291,14 +301,19 @@ public class Robot extends IterativeRobot {
 		}
 	}
 
+	public void testInit() {
+		// gyro.calibrate();
+		armMotor = new TalonSRX (42); // what ID should we use? 42
+		armMotor.config_kP(0, 0.03*encoderScale,50);
+		//
+	}
+	
 	@Override
 	public void testPeriodic() {
-		
-		while (isEnabled()) {
-			Timer.delay(0.01);
-			
+		if (isEnabled()) {
+			// System.out.println("Angle: " + gyro.getAngle());
+			armMotor.set(ControlMode.Position, 50 / encoderScale);
 		}
-		
 	}
 	
 	/**
